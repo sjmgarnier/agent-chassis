@@ -30,6 +30,12 @@ htmlcov/
 *.swp
 *.swo
 
+# Claude Code project settings (local only)
+.claude/
+
+# Internal docs (plans, specs, essays — local only)
+docs/
+
 # Chassis local state
 .mnem/
 .chassis/session.json

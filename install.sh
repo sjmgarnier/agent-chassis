@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # install.sh — chassis bootstrap installer
-# Usage: curl -fsSL https://chassis.sh/install | bash
+# Usage: curl -fsSL https://raw.githubusercontent.com/sjmgarnier/agent-chassis/main/install.sh | bash
 set -euo pipefail
 
 CHASSIS_HOME="$HOME/.chassis"
@@ -43,15 +43,15 @@ fi
 
 if command -v pipx &>/dev/null; then
   info "Using pipx"
-  pipx install "chassis[$INSTALL_EXTRAS]" --force
+  pipx install "agent-chassis[$INSTALL_EXTRAS]" --force
   if $USE_EMBEDDINGS; then
-    pipx inject chassis fastembed numpy
+    pipx inject agent-chassis fastembed numpy
   fi
-  CHASSIS_CMD="$(pipx environment --value PIPX_LOCAL_VENVS)/chassis/bin/chassis"
+  CHASSIS_CMD="$(pipx environment --value PIPX_LOCAL_VENVS)/agent-chassis/bin/chassis"
 else
   info "pipx not found — creating virtualenv at $CHASSIS_VENV"
   python3 -m venv "$CHASSIS_VENV"
-  "$CHASSIS_VENV/bin/pip" install --quiet "chassis[$INSTALL_EXTRAS]"
+  "$CHASSIS_VENV/bin/pip" install --quiet "agent-chassis[$INSTALL_EXTRAS]"
   CHASSIS_CMD="$CHASSIS_VENV/bin/chassis"
 fi
 

@@ -1,60 +1,166 @@
-# Chassis
+# agent-chassis
 
-A composable agent configuration system. Instead of a monolithic `CLAUDE.md` that accumulates every instruction you've ever needed, chassis splits your configuration into modular components that are injected on demand based on the incoming prompt.
-
----
-
-## The idea
-
-Your agent instructions fall into two categories:
-
-- **Universal rules** — things that always apply, regardless of what you're doing. These belong in `CLAUDE.md`.
-- **Domain-specific instructions** — your git workflow, your R packaging conventions, this API's authentication quirks. These change by context, and loading all of them all the time pollutes the context window with instructions that don't apply.
-
-Chassis manages the second category. Components are markdown files with YAML frontmatter declaring their trigger conditions. A hook script fires before each prompt, matches the prompt against component triggers, and injects matching components into context — before the agent sees the message.
+Push-based instruction injection for Claude Code, Claude Desktop, and OpenCode. Components are markdown files that get injected into the agent's context *before* it processes your prompt — automatically, on every turn, without the agent having to ask.
 
 ```
 ~/.chassis/components/
-  COMPONENT-git.md        # injected when prompt mentions git, commit, branch...
-  COMPONENT-r-pkg.md      # injected when prompt mentions devtools, roxygen...
-  COMPONENT-api-auth.md   # injected when prompt mentions auth, token, OAuth...
+  COMPONENT-git.md       # injected when prompt mentions git, commit, branch…
+  COMPONENT-r-pkg.md     # injected when prompt mentions devtools, roxygen…
 
 <project>/.components/
-  COMPONENT-git.md        # project-level override of the global git component
+  COMPONENT-git.md       # project-level override of the global git component
 ```
+
+---
+
+## Install
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/sjmgarnier/agent-chassis/main/install.sh)
+```
+
+The installer checks your Python version, installs chassis, writes `~/.chassis/config.toml`, and registers the hook for your platform.
+
+**Manual install:**
+
+```bash
+pip install agent-chassis[mcp]                 # core + Claude Desktop MCP server
+pip install agent-chassis[mcp,embeddings]      # + Phase 2 semantic matching (~80 MB)
+```
+
+---
+
+## Quick start
+
+### 1. Create a component
+
+```markdown
+---
+name: git-workflow
+description: Git commit conventions for this project
+gate: false
+triggers:
+  keywords: [git, commit, branch, push]
+  topics: [version control]
+---
+
+# Git Workflow
+
+- Use conventional commits: `feat:`, `fix:`, `chore:`, `docs:`
+- Squash before merging
+- Never force-push to main
+```
+
+Save as `~/.chassis/components/COMPONENT-git.md` (global) or `<project>/.components/COMPONENT-git.md` (project-specific).
+
+### 2. Register the hook
+
+**Claude Code:**
+```bash
+bash hooks/register-claude-code.sh
+```
+
+**Claude Desktop:**
+```bash
+bash hooks/register-claude-desktop.sh
+```
+
+### 3. Verify
+
+```bash
+chassis doctor
+```
+
+```
+chassis doctor
+========================================
+  ✓  Python environment: 3.12.0
+  ✓  Global components dir: /Users/you/.chassis/components (1 component)
+  -  Project components dir: No project-level components (optional)
+  ✓  Claude Code hook: /path/to/chassis-hook.sh
+  -  fastembed (Phase 2): unavailable — run: pip install 'agent-chassis[embeddings]'
+  ✓  chassis-mcp (Claude Desktop): chassis-mcp
+
+All checks passed.
+```
+
+---
+
+## Component format
+
+```markdown
+---
+name: my-component           # required, unique identifier
+description: What this does  # used for Phase 2 semantic matching
+gate: false                  # true = ask user before injecting
+triggers:
+  keywords: [word1, word2]   # substring-matched against the prompt (case-insensitive)
+  topics: [topic1]           # same matching, semantic grouping only
+---
+
+Your markdown instructions here.
+```
+
+**Search order:** Project-level (`.components/`) overrides global (`~/.chassis/components/`) by name.
+
+---
+
+## Configuration
+
+`~/.chassis/config.toml` (global, created by the installer):
+
+```toml
+[selector]
+phase = 1        # 1 = keyword matching, 2 = semantic (requires [embeddings])
+threshold = 0.5  # cosine similarity threshold for Phase 2
+
+[gate]
+enabled = false  # true = require approval before loading any component
+
+[notify]
+enabled = true   # show "[chassis] Loading: <names>" in agent context
+```
+
+Project-level overrides: `<project>/.chassis/config.toml` — same format, merged over global.
+
+**Gate behaviour:** `gate.enabled = true` overrides all per-component `gate:` settings — everything requires approval when the global gate is on.
+
+---
+
+## Platforms
+
+| Platform | Mechanism | Status |
+|---|---|---|
+| Claude Code | `UserPromptSubmit` hook | ✅ |
+| Claude Desktop | MCP server (`chassis/load` prompt + `chassis_load_components` tool) | ✅ |
+| OpenCode | `UserPromptSubmit` hook | 🚧 Pending API confirmation |
+
+---
+
+## Phase 2: Semantic matching
+
+```bash
+pip install agent-chassis[embeddings]
+```
+
+Set `phase = 2` in your config. On first use, chassis downloads `BAAI/bge-small-en-v1.5` (~80 MB). Components are matched by cosine similarity between the prompt and each component's `description` field, rather than substring keywords.
 
 ---
 
 ## How it differs from skills
 
-[Superpowers skills](https://github.com/anthropics/claude-code) and chassis solve related but distinct problems. The confusion is understandable — both inject instructions into context. Here is where they diverge.
+Both chassis and skills inject instructions into agent context. The key differences:
 
-### Push vs pull
+| | Skills | Chassis |
+|---|---|---|
+| **Trigger** | Agent decides to invoke | Hook fires automatically before every prompt |
+| **Scope** | Universal workflow methodology | Your environment's specific conventions |
+| **After compaction** | Lost — agent must re-invoke | Re-injected automatically on every prompt |
+| **Authorship** | Shared, version-controlled | Personal, lives in `~/.chassis/` |
 
-Skills are **agent-pull**: the agent reads your prompt, decides a skill applies, and invokes it. That works well for workflow methodology skills (TDD, brainstorming, debugging) where the agent reliably recognises the need.
+Skills are *how to approach a class of problem* — TDD, debugging, brainstorming. Chassis is *the rules for your specific environment* — this repo's commit format, this API's auth quirks, this project's testing patterns.
 
-Chassis is **hook-push**: a script fires before the agent sees the prompt, matches components, and injects them. The agent cannot forget to load context it never had to ask for.
-
-This distinction matters most when:
-- The agent is mid-task and hasn't paused to reconsider its tooling
-- Context compaction has wiped out previously loaded instructions
-- The relevant domain isn't obvious from the prompt surface (e.g. a vague "fix this" over code that requires specific project conventions)
-
-### Workflow methodology vs domain knowledge
-
-Skills are about **how to do things** — the TDD cycle, how to brainstorm a design, how to debug systematically. They are universal techniques that apply the same way regardless of project.
-
-Chassis components are about **the rules for this specific context** — how commits are formatted in this repo, what testing framework this project uses, which authentication pattern this API expects. They are authored by the user, scoped to their environment, and mean nothing outside it.
-
-### Compaction resilience
-
-After context compaction, any skill the agent loaded earlier in the session is gone. The agent would need to notice this and re-invoke the skill — which it often doesn't. Chassis re-injects components automatically on every prompt, so compaction is a non-event.
-
----
-
-## How it complements skills
-
-Chassis and skills are not competitors. They occupy different layers:
+They complement each other: a session might load the TDD skill when you ask it to add a feature, while chassis has already injected your project's testing conventions and git workflow.
 
 | Layer | Mechanism | What it carries |
 |---|---|---|
@@ -62,43 +168,8 @@ Chassis and skills are not competitors. They occupy different layers:
 | Skills | Agent-pull | Workflow methodology |
 | Chassis | Hook-push | Domain-specific instructions |
 
-A session might load the brainstorming skill when you ask it to design a feature, and simultaneously have the git-workflow and r-packaging components injected because your prompt mentioned commits and a package test. They coexist without interference.
-
-The practical split: if you're writing an instruction that tells the agent *how to approach a class of problem*, it's a skill. If you're writing an instruction that encodes *the conventions of your specific environment*, it's a chassis component.
-
 ---
 
-## Overlaps
+## License
 
-It is possible to do either job with the wrong tool:
-
-- A skill can encode project-specific conventions. It works, but the agent has to remember to invoke it, and after compaction it's gone.
-- A chassis component can encode workflow methodology. It works, but it gets injected whether the prompt needs it or not.
-
-The tools overlap in capability. They differ in reliability and appropriate scope.
-
----
-
-## Cheeky take
-
-If skills are the right abstraction for workflow methodology, chassis is what you reach for when skills aren't reliable enough: project-specific instructions that must be present, must survive compaction, and must not depend on the agent remembering to ask for them.
-
-Or, put differently: chassis is skills with a push model, scoped to your environment instead of a universal technique library.
-
----
-
-## Use cases
-
-> *Specific examples comparing chassis and skills for the same task will be added here as the project matures.*
-
-Early candidates:
-- Project-specific git commit conventions (chassis) vs general commit hygiene guidance (skill)
-- This codebase's testing patterns (chassis) vs TDD methodology (skill)
-- A private API's authentication flow (chassis) vs general API integration patterns (skill)
-- Post-compaction context restoration (chassis has no equivalent in skills)
-
----
-
-## Status
-
-Under active development. See [`docs/superpowers/specs/2026-05-26-chassis-design.md`](docs/superpowers/specs/2026-05-26-chassis-design.md) for the full design spec and [`docs/superpowers/plans/`](docs/superpowers/plans/) for the implementation plan.
+MIT — see [LICENSE](LICENSE)
