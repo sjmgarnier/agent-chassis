@@ -7,8 +7,10 @@ from .config import load_config
 from .selector import select
 from .session import load_session, mark_injected, save_session, should_inject
 
+_log_dir = Path.home() / ".chassis"
+_log_dir.mkdir(parents=True, exist_ok=True)
 logging.basicConfig(
-    filename=Path.home() / ".chassis" / "chassis.log",
+    filename=_log_dir / "chassis.log",
     level=logging.WARNING,
     format="%(asctime)s %(levelname)s %(message)s",
 )
@@ -30,12 +32,12 @@ def cmd_select(prompt: str) -> None:
     if not to_inject:
         sys.exit(0)
 
-    if config.notify_enabled:
-        names = ", ".join(r.component.name for r in to_inject)
-        print(f"[chassis] Loading: {names}", file=sys.stderr)
-
     gated = [r for r in to_inject if r.requires_gate]
     ungated = [r for r in to_inject if not r.requires_gate]
+
+    if config.notify_enabled and ungated:
+        names = ", ".join(r.component.name for r in ungated)
+        print(f"[chassis] Loading: {names}", file=sys.stderr)
 
     if gated:
         names = ", ".join(r.component.name for r in gated)
@@ -43,6 +45,8 @@ def cmd_select(prompt: str) -> None:
             f"[chassis] The following components matched but require approval "
             f"before loading: {names}. Please ask the user if they should be loaded."
         )
+        for result in gated:
+            session = mark_injected(result.component.name, session)
 
     for result in ungated:
         print(result.component.body)
