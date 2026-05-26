@@ -16,11 +16,11 @@ set -euo pipefail
 
 # Resolve the chassis Python entry point
 if command -v chassis &>/dev/null; then
-  CHASSIS_CMD="chassis"
+  CHASSIS_CMD=(chassis)
 elif [ -x "$HOME/.chassis/.venv/bin/chassis" ]; then
-  CHASSIS_CMD="$HOME/.chassis/.venv/bin/chassis"
+  CHASSIS_CMD=("$HOME/.chassis/.venv/bin/chassis")
 elif [ -x "$HOME/.chassis/.venv/bin/python" ]; then
-  CHASSIS_CMD="$HOME/.chassis/.venv/bin/python -m chassis"
+  CHASSIS_CMD=("$HOME/.chassis/.venv/bin/python" "-m" "chassis")
 else
   # chassis not found — fail silently so the agent session is not interrupted
   exit 0
@@ -63,4 +63,4 @@ if [ -n "$CWD" ] && [ -d "$CWD" ]; then
 fi
 
 # Call the selector and print output to stdout (injected as context by Claude Code)
-$CHASSIS_CMD select "$PROMPT"
+"${CHASSIS_CMD[@]}" select "$PROMPT" || true
