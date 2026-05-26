@@ -129,11 +129,13 @@ Project-level overrides: `<project>/.chassis/config.toml` — same format, merge
 
 ## Platforms
 
-| Platform | Mechanism | Status |
+| Platform | Mechanism | Notes |
 |---|---|---|
-| Claude Code | `UserPromptSubmit` hook | ✅ |
-| Claude Desktop | MCP server (`chassis/load` prompt + `chassis_load_components` tool) | ✅ |
-| OpenCode | TypeScript plugin API — no pre-prompt hook yet | 🚧 Not yet supported |
+| Claude Code | `UserPromptSubmit` hook | ✅ Fully automatic — components injected before every prompt |
+| Claude Desktop | MCP `/chassis/load` slash command + `chassis_load_components` tool | ⚠️ Manual — user invokes `/chassis/load` before a task, or the model calls the tool |
+| OpenCode | MCP `chassis_load_components` tool only (no slash command for MCP prompts) | ⚠️ Manual — model must call the tool explicitly; no automatic trigger |
+
+Claude Code is the only platform where injection is truly push-based. On Claude Desktop and OpenCode, chassis components are available on demand but won't fire automatically on every turn.
 
 ---
 
