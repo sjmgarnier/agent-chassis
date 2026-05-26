@@ -7,8 +7,8 @@ class Component:
     description: str
     body: str
     gate: bool = False
-    keywords: list = field(default_factory=list)
-    topics: list = field(default_factory=list)
+    keywords: list[str] = field(default_factory=list)
+    topics: list[str] = field(default_factory=list)
     source: str = "global"
 
 
