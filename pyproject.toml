@@ -16,9 +16,13 @@ embeddings = [
     "fastembed>=0.3",
     "numpy>=1.24",
 ]
+mcp = [
+    "mcp>=1.0",
+]
 
 [project.scripts]
 chassis = "chassis.__main__:main"
+chassis-mcp = "chassis.mcp.server:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
