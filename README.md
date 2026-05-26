@@ -133,7 +133,7 @@ Project-level overrides: `<project>/.chassis/config.toml` — same format, merge
 |---|---|---|
 | Claude Code | `UserPromptSubmit` hook | ✅ |
 | Claude Desktop | MCP server (`chassis/load` prompt + `chassis_load_components` tool) | ✅ |
-| OpenCode | `UserPromptSubmit` hook | 🚧 Pending API confirmation |
+| OpenCode | TypeScript plugin API — no pre-prompt hook yet | 🚧 Not yet supported |
 
 ---
 
