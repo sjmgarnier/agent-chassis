@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 
 from .config import load_config
+from .doctor import run_doctor
 from .selector import select
 from .session import load_session, mark_injected, save_session, should_inject
 
@@ -63,9 +64,13 @@ def main() -> None:
     select_parser = sub.add_parser("select", help="Select and print matching components")
     select_parser.add_argument("prompt", help="The incoming user prompt")
 
+    sub.add_parser("doctor", help="Check chassis installation health")
+
     args = parser.parse_args()
     if args.command == "select":
         cmd_select(args.prompt)
+    elif args.command == "doctor":
+        run_doctor(project_root=Path.cwd())
     else:
         parser.print_help()
 
